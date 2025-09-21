@@ -5,7 +5,7 @@ const { protect } = require("../middleware/auth");
 const {
   initPaystackPayment,
   paystackWebhook,
-} = require("../controllers/paystackController");
+} = require("../controllers/paystack.controller");
 const axios = require("axios");
 const Order = require("../models/order.model");
 

@@ -1,13 +1,12 @@
 // workers/webhookWorker.js
 const { Worker, Queue } = require("bullmq");
-const IORedis = require("ioredis");
-const { verifyPaystackPayment } = require("../controllers/paystackController");
+const { redisConnection } = require("../redisConnection");
+const { verifyPaystackPayment } = require("../controllers/paystack.controller");
 
-// ✅ Redis connection
-const connection = new IORedis(process.env.REDIS_URL || "redis://127.0.0.1:6379");
-
-// ✅ Export the queue (so we can add jobs from controllers)
-const webhookQueue = new Queue("webhookQueue", { connection });
+// ✅ Export the queue (so controllers can add jobs)
+const webhookQueue = new Queue("webhookQueue", {
+  connection: redisConnection,
+});
 
 // ✅ Worker to process jobs
 const webhookWorker = new Worker(
@@ -26,7 +25,9 @@ const webhookWorker = new Worker(
       }
     );
   },
-  { connection }
+  {
+    connection: redisConnection,
+  }
 );
 
 webhookWorker.on("completed", (job) => {

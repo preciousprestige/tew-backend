@@ -1,7 +1,7 @@
-// controllers/paystackController.js
-import axios from "axios";
-import crypto from "crypto";
-import Order from "../models/Order.js";
+// controllers/paystack.controller.js
+const axios = require("axios");
+const crypto = require("crypto");
+const Order = require("../models/Order");
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 
@@ -10,7 +10,7 @@ const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
  * @route   POST /api/orders/:orderId/paystack/init
  * @access  Private
  */
-export const initPaystackPayment = async (req, res) => {
+const initPaystackPayment = async (req, res) => {
   try {
     const { orderId } = req.params;
     const order = await Order.findById(orderId);
@@ -19,12 +19,11 @@ export const initPaystackPayment = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // Call Paystack init endpoint
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
         email: req.user.email,
-        amount: Math.round(order.totalPrice * 100), // Paystack expects amount in kobo
+        amount: Math.round(order.totalPrice * 100),
         callback_url: `${process.env.FRONTEND_URL}/order/${orderId}`,
       },
       {
@@ -37,7 +36,6 @@ export const initPaystackPayment = async (req, res) => {
 
     const { authorization_url, reference } = response.data.data;
 
-    // Save reference on the order
     order.paymentResult = {
       id: reference,
       status: "pending",
@@ -58,31 +56,24 @@ export const initPaystackPayment = async (req, res) => {
  * @route   POST /api/webhook/paystack
  * @access  Public
  */
-export const paystackWebhook = async (req, res) => {
+const paystackWebhook = async (req, res) => {
   try {
-    const secret = PAYSTACK_SECRET;
-
-    // Generate hash from raw body
+    const signature = req.headers["x-paystack-signature"];
     const hash = crypto
-      .createHmac("sha512", secret)
-      .update(req.body)
+      .createHmac("sha512", PAYSTACK_SECRET)
+      .update(JSON.stringify(req.body))
       .digest("hex");
 
-    const signature = req.headers["x-paystack-signature"];
-
-    // Compare signature
     if (hash !== signature) {
       console.log("❌ Invalid Paystack signature");
       return res.status(401).send("Invalid signature");
     }
 
-    // Parse the event payload
-    const event = JSON.parse(req.body.toString());
+    const event = req.body;
 
     if (event.event === "charge.success") {
       const reference = event.data.reference;
 
-      // Update order
       const order = await Order.findOne({ "paymentResult.id": reference });
       if (order) {
         order.isPaid = true;
@@ -103,7 +94,59 @@ export const paystackWebhook = async (req, res) => {
 
     res.sendStatus(200);
   } catch (error) {
-    console.error("Webhook error:", error);
+    console.error("Webhook error:", error.message || error);
     res.sendStatus(500);
   }
+};
+
+/**
+ * @desc    Verify Paystack Payment
+ * @route   GET /api/orders/:orderId/paystack/verify/:reference
+ * @access  Private
+ */
+const verifyPaystackPayment = async (req, res) => {
+  try {
+    const { orderId, reference } = req.params;
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const response = await axios.get(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET}`,
+        },
+      }
+    );
+
+    const data = response.data.data;
+
+    if (data.status === "success") {
+      order.isPaid = true;
+      order.paidAt = Date.now();
+      order.paymentResult = {
+        id: reference,
+        status: data.status,
+        update_time: data.paidAt,
+        email_address: data.customer.email,
+      };
+      await order.save();
+
+      return res.json({ message: "Payment verified successfully", order });
+    } else {
+      return res.status(400).json({ message: "Payment not successful" });
+    }
+  } catch (error) {
+    console.error("Verify payment error:", error.response?.data || error.message);
+    res.status(500).json({ message: "Error verifying payment" });
+  }
+};
+
+module.exports = {
+  initPaystackPayment,
+  paystackWebhook,
+  verifyPaystackPayment,
 };

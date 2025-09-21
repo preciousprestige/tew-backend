@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/userModel");
+const User = require("../models/User"); // ✅ Capital U to match filename
 
 // Protect middleware
 const protect = async (req, res, next) => {

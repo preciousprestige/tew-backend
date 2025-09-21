@@ -1,3 +1,4 @@
+// routes/order.routes.js
 const express = require("express");
 const router = express.Router();
 const {
@@ -6,13 +7,22 @@ const {
   getOrderById,
   updateOrder,
   deleteOrder,
-} = require("../controllers/orderController");
-const { protect } = require("../middleware/auth");
+} = require("../controllers/orderController"); // ✅ this should exist separately
+const {
+  initPaystackPayment,
+  paystackWebhook,
+} = require("../controllers/paystack.controller"); // ✅ Paystack stuff
+const { protect, admin } = require("../middleware/authMiddleware");
 
+// Order CRUD
 router.post("/", protect, createOrder);
-router.get("/", protect, getOrders);
-router.get("/:id", protect, getOrderById);
-router.put("/:id", protect, updateOrder);
-router.delete("/:id", protect, deleteOrder);
+router.get("/", protect, admin, getOrders); // only admins see all orders
+router.get("/:id", protect, getOrderById); // user sees own order, admin sees any
+router.put("/:id", protect, admin, updateOrder);
+router.delete("/:id", protect, admin, deleteOrder);
+
+// Paystack routes
+router.post("/paystack/init/:orderId", protect, initPaystackPayment);
+router.post("/paystack/webhook", paystackWebhook); // public route for Paystack webhook
 
 module.exports = router;
