@@ -7,7 +7,7 @@ const webhookQueue = {
     console.log("⚠️ Redis queue is disabled. Webhook event skipped.");
   }
 };
-const Order = require("../models/order.model");
+const Order = require("../models/order");
 
 const router = express.Router();
 

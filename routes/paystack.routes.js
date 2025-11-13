@@ -7,7 +7,7 @@ const {
   paystackWebhook,
 } = require("../controllers/paystack.controller");
 const axios = require("axios");
-const Order = require("../models/order.model");
+const Order = require("../models/order");
 
 // ✅ Webhook (server → server)
 router.post("/webhook", express.json({ type: "*/*" }), paystackWebhook);

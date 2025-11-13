@@ -1,5 +1,5 @@
 const axios = require("axios");
-const Order = require("../models/orderModel");
+const Order = require("../models/order");
 
 // Verify Paystack payment manually (after frontend redirect)
 const verifyPaystackPayment = async (req, res) => {

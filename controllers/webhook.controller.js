@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const Order = require("../models/Order"); // adjust path if different
+const Order = require("../models/order"); // adjust path if different
 
 /**
  * Paystack Webhook Controller

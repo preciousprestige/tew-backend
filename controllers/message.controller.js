@@ -1,4 +1,4 @@
-const Message = require("../models/message.model");
+const Message = require("../models/message");
 
 /**
  * @desc Send a new message (admin or user)
