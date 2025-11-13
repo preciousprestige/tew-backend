@@ -1,16 +1,12 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const userSchema = mongoose.Schema(
+const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
-
-    // ✅ Your existing field
-    isAdmin: { type: Boolean, required: true, default: false },
-
-    // ✅ New field for seeding & role-based access
+    isAdmin: { type: Boolean, default: false },
     role: {
       type: String,
       enum: ["admin", "user"],
@@ -20,7 +16,13 @@ const userSchema = mongoose.Schema(
   { timestamps: true }
 );
 
-// Hash password before saving
+// Ensure consistency between role and isAdmin
+userSchema.pre("save", function (next) {
+  if (this.role === "admin") this.isAdmin = true;
+  next();
+});
+
+// ✅ Auto-hash password before saving
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(10);
@@ -28,10 +30,9 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// Match entered password with hashed password
+// ✅ Compare entered password with stored hash
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-const User = mongoose.model("User", userSchema);
-module.exports = User;
+module.exports = mongoose.model("User", userSchema);

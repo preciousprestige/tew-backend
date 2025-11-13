@@ -1,20 +1,30 @@
+// routes/user.routes.js
 const express = require("express");
 const router = express.Router();
+
+// ✅ Import all user controller functions from ONE file only
 const {
-  registerUser,
-  authUser,
   getUsers,
   getUserById,
   updateUser,
   deleteUser,
-} = require("../controllers/userController");
-const { protect } = require("../middleware/auth");
+} = require("../controllers/user.controller");
 
-router.post("/register", registerUser);
-router.post("/login", authUser);
-router.get("/", protect, getUsers);
-router.get("/:id", protect, getUserById);
-router.put("/:id", protect, updateUser);
-router.delete("/:id", protect, deleteUser);
+// ✅ Auth middleware
+const { protect, admin } = require("../middleware/authMiddleware");
+
+// === Routes ===
+
+// Get all users (Admin only)
+router.get("/", protect, admin, getUsers);
+
+// Get a specific user (Admin only)
+router.get("/:id", protect, admin, getUserById);
+
+// Update a user (Admin only)
+router.put("/:id", protect, admin, updateUser);
+
+// Delete a user (Admin only)
+router.delete("/:id", protect, admin, deleteUser);
 
 module.exports = router;

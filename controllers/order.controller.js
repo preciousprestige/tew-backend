@@ -1,24 +1,39 @@
-// controllers/orderController.js
 const Order = require("../models/order.model");
 
 /**
- * @desc    Create new order
- * @route   POST /api/orders
- * @access  Private
+ * @desc Create Order
+ * @route POST /api/orders
  */
 const createOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, totalPrice } = req.body;
+    const { customer, items, totalPrice, deliveryFee } = req.body;
 
-    if (!items || items.length === 0) {
+    if (!items || items.length === 0)
       return res.status(400).json({ message: "No items in order" });
-    }
 
     const order = new Order({
-      user: req.user._id,
-      items,
-      shippingAddress,
-      totalPrice,
+      user: req.user?._id || null,
+      items: items.map((i) => ({
+        product: i.product || null,
+        name: i.name,
+        qty: i.qty,
+        price: i.price,
+        image: i.image,
+      })),
+      shippingAddress: {
+        address: customer?.address || "N/A",
+        city: customer?.city || "",
+        state: customer?.state || "",
+        country: "Nigeria",
+      },
+      totalPrice: totalPrice + (deliveryFee || 0),
+      deliveryFee: deliveryFee || 0,
+      paymentResult: {
+        name: customer?.name || "",
+        phone: customer?.phone || "",
+        email: customer?.email || "",
+        note: customer?.note || "",
+      },
     });
 
     const createdOrder = await order.save();
@@ -30,99 +45,66 @@ const createOrder = async (req, res) => {
 };
 
 /**
- * @desc    Get all orders (Admin only)
- * @route   GET /api/orders
- * @access  Private/Admin
+ * @desc Get All Orders (Admin)
+ * @route GET /api/orders
  */
 const getOrders = async (req, res) => {
   try {
-    const orders = await Order.find({})
-      .populate("user", "id name email") // show user details
-      .sort({ createdAt: -1 });
+    const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
   } catch (err) {
-    console.error("❌ getOrders error:", err);
     res.status(500).json({ message: "Server error fetching orders" });
   }
 };
 
 /**
- * @desc    Get order by ID
- * @route   GET /api/orders/:id
- * @access  Private (user can see own, admin can see any)
+ * @desc Get Order By ID (Admin)
+ * @route GET /api/orders/:id
  */
-const getOrderById = async (req, res) => {
+const getOrderById = async (req, res) => {  // 🔧 Added
   try {
-    const order = await Order.findById(req.params.id).populate(
-      "user",
-      "id name email"
-    );
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    // only allow owner or admin
-    if (order.user._id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
-      return res.status(403).json({ message: "Not authorized to view this order" });
-    }
-
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Order not found" });
     res.json(order);
   } catch (err) {
-    console.error("❌ getOrderById error:", err);
+    console.error("getOrderById error:", err);
     res.status(500).json({ message: "Server error fetching order" });
   }
 };
 
 /**
- * @desc    Update order (Admin only, e.g. mark as shipped/delivered)
- * @route   PUT /api/orders/:id
- * @access  Private/Admin
+ * @desc Update Order (Status)
+ * @route PUT /api/orders/:id
  */
 const updateOrder = async (req, res) => {
   try {
-    const { paid, paymentResult, shippingAddress } = req.body;
-
+    const { status } = req.body;
     const order = await Order.findById(req.params.id);
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
-    }
+    if (!order) return res.status(404).json({ message: "Order not found" });
 
-    if (paid !== undefined) {
-      order.paid = paid;
-    }
-    if (paymentResult) {
-      order.paymentResult = paymentResult;
-    }
-    if (shippingAddress) {
-      order.shippingAddress = shippingAddress;
-    }
+    if (status) order.status = status;
 
-    const updatedOrder = await order.save();
-    res.json(updatedOrder);
+    const updated = await order.save();
+    res.json(updated);
   } catch (err) {
-    console.error("❌ updateOrder error:", err);
+    console.error("updateOrder error:", err);
     res.status(500).json({ message: "Server error updating order" });
   }
 };
 
 /**
- * @desc    Delete order (Admin only)
- * @route   DELETE /api/orders/:id
- * @access  Private/Admin
+ * @desc Delete Order (Admin)
+ * @route DELETE /api/orders/:id
  */
-const deleteOrder = async (req, res) => {
+const deleteOrder = async (req, res) => {  // 🔧 Added
   try {
     const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
-    }
+    if (!order) return res.status(404).json({ message: "Order not found" });
 
     await order.deleteOne();
-    res.json({ message: "Order removed" });
+    res.json({ message: "Order deleted successfully" });
   } catch (err) {
-    console.error("❌ deleteOrder error:", err);
+    console.error("deleteOrder error:", err);
     res.status(500).json({ message: "Server error deleting order" });
   }
 };
@@ -130,7 +112,7 @@ const deleteOrder = async (req, res) => {
 module.exports = {
   createOrder,
   getOrders,
-  getOrderById,
+  getOrderById, // 🔧 Added
   updateOrder,
-  deleteOrder,
+  deleteOrder,  // 🔧 Added
 };

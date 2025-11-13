@@ -1,4 +1,4 @@
-const User = require("../models/userModel");
+const User = require("../models/user");
 const generateToken = require("../middleware/auth").generateToken;
 
 // @desc    Register new user

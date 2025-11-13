@@ -1,37 +1,36 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User"); // ✅ Capital U to match filename
+const User = require("../models/user");
 
-// Protect middleware
 const protect = async (req, res, next) => {
-  let token;
+  try {
+    const authHeader = req.headers.authorization;
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
-
-      // Decode token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Attach user to req
-      const user = await User.findById(decoded.id).select("-password");
-
-      if (!user) {
-        return res.status(401).json({ message: "User not found" });
-      }
-
-      req.user = user; // ✅ user now available in all protected routes
-
-      next();
-    } catch (error) {
-      console.error("Auth middleware error:", error.message);
-      return res.status(401).json({ message: "Not authorized, token failed" });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Not authorized, no token" });
     }
-  } else {
-    return res.status(401).json({ message: "Not authorized, no token" });
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.id).select("-password");
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error);
+    return res.status(401).json({ message: "Not authorized, token failed" });
   }
 };
 
-module.exports = { protect };
+const admin = (req, res, next) => {
+  if (req.user && req.user.isAdmin) {
+    next();
+  } else {
+    return res.status(403).json({ message: "Not authorized as admin" });
+  }
+};
+
+module.exports = { protect, admin };

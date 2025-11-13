@@ -1,7 +1,8 @@
 // controllers/paystack.controller.js
 const axios = require("axios");
 const crypto = require("crypto");
-const Order = require("../models/Order");
+const Order = require("../models/order.model");
+
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 

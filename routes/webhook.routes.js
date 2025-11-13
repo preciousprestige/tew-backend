@@ -1,8 +1,13 @@
 // routes/webhook.routes.js
-import express from "express";
-import crypto from "crypto";
-const webhookQueue = require("../queues/webhookQueue");
-import Order from "../models/order.model.js";
+const express = require("express");
+const crypto = require("crypto");
+//const webhookQueue = require("../queues/webhookQueue");
+const webhookQueue = {
+  add: async () => {
+    console.log("⚠️ Redis queue is disabled. Webhook event skipped.");
+  }
+};
+const Order = require("../models/order.model");
 
 const router = express.Router();
 
@@ -59,24 +64,6 @@ function verifySignature(req) {
 
 router.post("/paystack", async (req, res) => {
   try {
-    const event = req.body;
-
-    // Log receipt of webhook
-    console.log("📩 Received Paystack webhook:", event);
-
-    // Push to queue for async processing
-    await webhookQueue.add("processWebhook", { reference: event.data.reference });
-
-    res.status(200).json({ received: true });
-  } catch (err) {
-    console.error("⚠️ Failed to enqueue webhook:", err);
-    res.status(500).json({ error: "Webhook enqueue failed" });
-  }
-});
-
-
-router.post("/paystack", async (req, res) => {
-  try {
     console.log(`[Webhook] 🔔 Event received: ${req.body.event}`);
 
     if (!verifySignature(req)) {
@@ -118,4 +105,4 @@ router.post("/paystack", async (req, res) => {
   }
 });
 
-export default router;
+module.exports = router;
