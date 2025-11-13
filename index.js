@@ -78,14 +78,9 @@ app.all(/^\/api(\/.*)?$/, (req, res) => {
   return res.status(404).json({ success: false, message: "API route not found" });
 });
 
-// === Serve Admin Frontend ===
-const __dirnameFull = path.resolve();
-const adminBuildPath = path.join(__dirnameFull, "../admin/build");
-
-app.use(express.static(adminBuildPath));
-
-app.get(/^(?!\/api).*/, (req, res) => {
-  res.sendFile(path.join(adminBuildPath, "index.html"));
+// ✅ Root endpoint for Render check
+app.get("/", (req, res) => {
+  res.send("🚀 TEW backend is running successfully on Render");
 });
 
 // ✅ Global Error Handler
