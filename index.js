@@ -8,7 +8,9 @@ const { Server } = require("socket.io");
 
 dotenv.config();
 const app = express();
-const server = http.createServer(app); // ✅ use HTTP server for socket.io
+const server = http.createServer(app);
+
+// === SOCKET.IO WITH FIXED CORS ===
 const io = new Server(server, {
   cors: {
     origin: [
@@ -29,6 +31,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));
 
+// === CORS FOR API REQUESTS ===
 app.use(
   cors({
     origin: [
@@ -80,20 +83,20 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/messages", messageRoutes);
 
-// ✅ Serve local uploads folder
+// Serve uploads folder
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));
 
-// ✅ Handle invalid API routes
+// Handle invalid API routes
 app.all(/^\/api(\/.*)?$/, (req, res) => {
   return res.status(404).json({ success: false, message: "API route not found" });
 });
 
-// ✅ Root endpoint for Render check
+// Root endpoint
 app.get("/", (req, res) => {
   res.send("🚀 TEW backend is running successfully on Render");
 });
 
-// ✅ Global Error Handler
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error("❌ Error caught by middleware:", err);
   if (res.headersSent) return next(err);
@@ -109,22 +112,19 @@ const activeUsers = new Map();
 io.on("connection", (socket) => {
   console.log("🟢 New client connected:", socket.id);
 
-  // ✅ Register user or admin
   socket.on("registerUser", (userId) => {
     activeUsers.set(userId, socket.id);
     console.log(`✅ ${userId} registered with socket ${socket.id}`);
   });
 
-  // ✅ Listen for messages from frontend/admin
   socket.on("sendMessage", (data) => {
     console.log("📩 Message received:", data);
 
     const receiverSocket = activeUsers.get(data.receiver);
     if (receiverSocket) {
-      io.to(receiverSocket).emit("newMessage", data); // send live message
+      io.to(receiverSocket).emit("newMessage", data);
     }
 
-    // Also emit to admin if sender is user (so admin gets updates)
     if (data.sender.startsWith("user-")) {
       const adminSocket = activeUsers.get("admin");
       if (adminSocket) {
@@ -133,7 +133,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ On disconnect
   socket.on("disconnect", () => {
     for (let [user, id] of activeUsers.entries()) {
       if (id === socket.id) activeUsers.delete(user);
