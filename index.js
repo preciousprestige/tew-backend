@@ -11,7 +11,14 @@ const app = express();
 const server = http.createServer(app); // ✅ use HTTP server for socket.io
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:5173",
+      "https://tew-eight.vercel.app",
+      "https://preciousprestige.github.io",
+      "https://preciousprestige.github.io/tew"
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -28,6 +35,9 @@ app.use(
       "http://localhost:3000",
       "http://localhost:3001",
       "http://localhost:5173",
+      "https://tew-eight.vercel.app",
+      "https://preciousprestige.github.io",
+      "https://preciousprestige.github.io/tew"
     ],
     credentials: true,
   })
