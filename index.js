@@ -32,6 +32,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));
 
 // === CORS FOR API REQUESTS ===
+// ✅ FIXED: Added missing methods array ("PUT", "DELETE")
 app.use(
   cors({
     origin: [
@@ -42,6 +43,7 @@ app.use(
       "https://preciousprestige.github.io",
       "https://preciousprestige.github.io/tew"
     ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
 );
