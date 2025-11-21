@@ -1,5 +1,6 @@
 // backend/routes/admin.routes.js
 const express = require("express");
+const { adminLogin } = require("../controllers/adminController");
 const router = express.Router();
 const {
   updateAdminSettings,
@@ -16,5 +17,8 @@ router.post("/forgot", forgotPassword);
 
 // ✅ Reset password (new password via token)
 router.post("/reset/:token", resetPassword);
+
+// Admin login
+router.post("/login", adminLogin);
 
 module.exports = router;

@@ -23,7 +23,6 @@
     "express": "^5.1.0",
     "ioredis": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
-    "lucide-react": "^0.544.0",
     "mongoose": "^8.19.1",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.10",

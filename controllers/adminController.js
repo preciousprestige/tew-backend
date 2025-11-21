@@ -3,7 +3,10 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 
-// ✅ Update Admin Settings (Old/New Email & Password)
+
+// =============================
+// UPDATE ADMIN SETTINGS
+// =============================
 exports.updateAdminSettings = async (req, res) => {
   try {
     const adminId = req.user?._id;
@@ -16,12 +19,10 @@ exports.updateAdminSettings = async (req, res) => {
     const admin = await User.findById(adminId);
     if (!admin) return res.status(404).json({ message: "Admin not found" });
 
-    // ✅ Verify old email
     if (oldEmail && admin.email !== oldEmail) {
       return res.status(400).json({ message: "Old email does not match current email" });
     }
 
-    // ✅ Verify old password
     if (oldPassword) {
       const match = await bcrypt.compare(oldPassword, admin.password);
       if (!match) {
@@ -29,7 +30,6 @@ exports.updateAdminSettings = async (req, res) => {
       }
     }
 
-    // ✅ Update email & password
     if (newEmail) admin.email = newEmail;
     if (newPassword) {
       const salt = await bcrypt.genSalt(10);
@@ -37,34 +37,34 @@ exports.updateAdminSettings = async (req, res) => {
     }
 
     await admin.save();
-    return res.json({ success: true, message: "✅ Settings updated successfully!" });
+    res.json({ success: true, message: "Settings updated successfully!" });
   } catch (err) {
     console.error("Error updating admin settings:", err);
-    return res.status(500).json({ message: "Server error updating settings" });
+    res.status(500).json({ message: "Server error updating settings" });
   }
 };
 
-// ✅ Forgot Password (Send Reset Email)
+
+
+// =============================
+// FORGOT PASSWORD
+// =============================
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const admin = await User.findOne({ email });
 
-    if (!admin) {
-      return res.status(404).json({ message: "Admin not found with this email" });
-    }
+    if (!admin) return res.status(404).json({ message: "Admin not found with this email" });
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const hash = crypto.createHash("sha256").update(resetToken).digest("hex");
 
-    admin.resetPasswordToken = resetTokenHash;
-    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 mins
+    admin.resetPasswordToken = hash;
+    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
     await admin.save();
 
     const resetURL = `http://localhost:5173/admin/reset/${resetToken}`;
 
-    // Email setup (configure .env)
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -73,59 +73,83 @@ exports.forgotPassword = async (req, res) => {
       },
     });
 
-    const mailOptions = {
+    await transporter.sendMail({
       from: `"TEW Admin" <${process.env.ADMIN_EMAIL}>`,
       to: admin.email,
-      subject: "TEW Admin Password Reset",
-      html: `
-        <p>Hello Admin,</p>
-        <p>You requested to reset your password. Click below to continue:</p>
-        <a href="${resetURL}" target="_blank" 
-        style="background:#a17c4d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;">
-          Reset Password
-        </a>
-        <p>This link expires in 10 minutes.</p>
-      `,
-    };
+      subject: "Password Reset",
+      html: `<p>Click below to reset your password:</p>
+             <a href="${resetURL}" target="_blank">Reset Password</a>`,
+    });
 
-    await transporter.sendMail(mailOptions);
-
-    res.json({ message: "✅ Password reset link sent to your email" });
+    res.json({ message: "Password reset email sent" });
   } catch (err) {
     console.error("Forgot password error:", err);
-    res.status(500).json({ message: "Server error sending reset email" });
+    res.status(500).json({ message: "Server error sending email" });
   }
 };
 
-// ✅ Reset Password via Token
+
+
+// =============================
+// RESET PASSWORD
+// =============================
 exports.resetPassword = async (req, res) => {
   try {
-    const resetTokenHash = crypto
+    const hash = crypto
       .createHash("sha256")
       .update(req.params.token)
       .digest("hex");
 
     const admin = await User.findOne({
-      resetPasswordToken: resetTokenHash,
+      resetPasswordToken: hash,
       resetPasswordExpire: { $gt: Date.now() },
     });
 
-    if (!admin) {
-      return res.status(400).json({ message: "Invalid or expired token" });
-    }
+    if (!admin) return res.status(400).json({ message: "Invalid or expired token" });
 
-    const { newPassword } = req.body;
     const salt = await bcrypt.genSalt(10);
-    admin.password = await bcrypt.hash(newPassword, salt);
+    admin.password = await bcrypt.hash(req.body.newPassword, salt);
 
-    // clear reset token
     admin.resetPasswordToken = undefined;
     admin.resetPasswordExpire = undefined;
 
     await admin.save();
-    res.json({ message: "✅ Password has been reset successfully" });
+    res.json({ message: "Password reset successful" });
   } catch (err) {
     console.error("Reset password error:", err);
     res.status(500).json({ message: "Server error resetting password" });
+  }
+};
+
+
+
+// =============================
+// ADMIN LOGIN  ← FIXED POSITION
+// =============================
+exports.adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const admin = await User.findOne({ email });
+    if (!admin) return res.status(401).json({ message: "Invalid email or password" });
+
+    if (!admin.isAdmin)
+      return res.status(403).json({ message: "Access denied. Not an admin." });
+
+    const match = await bcrypt.compare(password, admin.password);
+    if (!match) return res.status(401).json({ message: "Invalid email or password" });
+
+    const token = admin.generateToken();
+
+    res.json({
+      _id: admin._id,
+      name: admin.name,
+      email: admin.email,
+      token,
+      isAdmin: true,
+    });
+  } catch (err) {
+    console.error("Admin login error:", err);
+    res.status(500).json({ message: "Server error during admin login" });
   }
 };
