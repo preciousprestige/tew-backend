@@ -19,7 +19,7 @@ const io = new Server(server, {
       "http://localhost:5173",
       "https://tew-eight.vercel.app",
       "https://preciousprestige.github.io",
-      "https://preciousprestige.github.io/tew"
+      "https://preciousprestige.github.io/tew",
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -27,12 +27,13 @@ const io = new Server(server, {
 });
 
 // === Middleware ===
+// MUST BE FIRST
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));
 
 // === CORS FOR API REQUESTS ===
-// ✅ FIXED: Added missing methods array ("PUT", "DELETE")
 app.use(
   cors({
     origin: [
@@ -41,7 +42,7 @@ app.use(
       "http://localhost:5173",
       "https://tew-eight.vercel.app",
       "https://preciousprestige.github.io",
-      "https://preciousprestige.github.io/tew"
+      "https://preciousprestige.github.io/tew",
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
@@ -85,12 +86,12 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/messages", messageRoutes);
 
-// Serve uploads folder
-app.use("/uploads", express.static(path.join(__dirname, "/uploads")));
-
 // Handle invalid API routes
 app.all(/^\/api(\/.*)?$/, (req, res) => {
-  return res.status(404).json({ success: false, message: "API route not found" });
+  return res.status(404).json({
+    success: false,
+    message: "API route not found",
+  });
 });
 
 // Root endpoint
@@ -98,10 +99,22 @@ app.get("/", (req, res) => {
   res.send("🚀 TEW backend is running successfully on Render");
 });
 
-// Global Error Handler
+// === JSON Parse Error Handler (MUST BE AFTER ROUTES)
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && "body" in req) {
+    console.error("❌ Bad JSON:", err);
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid JSON payload" });
+  }
+  next(err);
+});
+
+// === Global Error Handler
 app.use((err, req, res, next) => {
   console.error("❌ Error caught by middleware:", err);
   if (res.headersSent) return next(err);
+
   res.status(500).json({
     success: false,
     message: err.message || "Internal Server Error",

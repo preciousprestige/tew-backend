@@ -1,3 +1,4 @@
+// controllers/auth.controller.js
 const User = require("../models/user");
 const generateToken = require("../utils/generateToken");
 const bcrypt = require("bcryptjs");
@@ -10,7 +11,7 @@ const nodemailer = require("nodemailer");
  */
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, isAdmin } = req.body;
+    const { name, email, password, isAdmin, role } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
@@ -21,11 +22,16 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    // Hash password correctly here
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     const user = await User.create({
       name,
       email: email.trim().toLowerCase(),
-      password, // will hash in pre-save hook
+      password: hashedPassword,
       isAdmin: isAdmin || false,
+      role: role || "user",
     });
 
     const token = generateToken(user._id, user.isAdmin);
@@ -39,6 +45,7 @@ const registerUser = async (req, res) => {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin,
+        role: user.role,
       },
     });
   } catch (error) {
@@ -53,18 +60,33 @@ const registerUser = async (req, res) => {
  */
 const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body || {};
+
+    email = typeof email === "string" ? email.trim().toLowerCase() : email;
+
+    console.log("LOGIN ATTEMPT -> email:", email, "password present:", !!password);
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    const user = await User.findOne({ email });
+    console.log("FOUND USER:", !!user, user ? user.email : "none");
+
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    let isMatch = false;
+
+    if (user.password.startsWith("$2")) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = password === user.password;
+    }
+
+    console.log("PASSWORD MATCH:", isMatch);
+
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -80,6 +102,7 @@ const loginUser = async (req, res) => {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin,
+        role: user.role,
       },
     });
   } catch (error) {
@@ -88,37 +111,30 @@ const loginUser = async (req, res) => {
   }
 };
 
-/**
- * @desc Get current user profile
- * @route GET /api/auth/profile
- */
 const getUserProfile = async (req, res) => {
   return res.json({ success: true, user: req.user });
 };
 
-/**
- * @desc Update Admin Settings (email/password)
- * @route PUT /api/auth/update-settings
- * @access Private/Admin
- */
 const updateAdminSettings = async (req, res) => {
   try {
     const adminId = req.user?._id;
     const { oldEmail, newEmail, oldPassword, newPassword } = req.body;
 
     if (!adminId) {
-      return res.status(401).json({ message: "Unauthorized: Admin not authenticated" });
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: Admin not authenticated" });
     }
 
     const admin = await User.findById(adminId);
     if (!admin) return res.status(404).json({ message: "Admin not found" });
 
-    // Verify old email
     if (oldEmail && admin.email !== oldEmail) {
-      return res.status(400).json({ message: "Old email does not match current email" });
+      return res
+        .status(400)
+        .json({ message: "Old email does not match current email" });
     }
 
-    // Verify old password
     if (oldPassword) {
       const match = await bcrypt.compare(oldPassword, admin.password);
       if (!match) {
@@ -126,7 +142,6 @@ const updateAdminSettings = async (req, res) => {
       }
     }
 
-    // Update email & password
     if (newEmail) admin.email = newEmail;
     if (newPassword) {
       const salt = await bcrypt.genSalt(10);
@@ -134,17 +149,17 @@ const updateAdminSettings = async (req, res) => {
     }
 
     await admin.save();
-    return res.json({ success: true, message: "✅ Settings updated successfully!" });
+
+    return res.json({
+      success: true,
+      message: "Settings updated successfully!",
+    });
   } catch (err) {
     console.error("Error updating admin settings:", err);
     return res.status(500).json({ message: "Server error updating settings" });
   }
 };
 
-/**
- * @desc Forgot Password (Send Reset Email)
- * @route POST /api/auth/forgot-password
- */
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -154,17 +169,18 @@ const forgotPassword = async (req, res) => {
       return res.status(404).json({ message: "Admin not found with this email" });
     }
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
 
     admin.resetPasswordToken = resetTokenHash;
-    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 mins
+    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
     await admin.save();
 
     const resetURL = `http://localhost:5173/admin/reset/${resetToken}`;
 
-    // Email setup (configure .env)
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -176,31 +192,22 @@ const forgotPassword = async (req, res) => {
     const mailOptions = {
       from: `"TEW Admin" <${process.env.ADMIN_EMAIL}>`,
       to: admin.email,
-      subject: "TEW Admin Password Reset",
+      subject: "Password Reset",
       html: `
-        <p>Hello Admin,</p>
-        <p>You requested to reset your password. Click below to continue:</p>
-        <a href="${resetURL}" target="_blank" 
-        style="background:#a17c4d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;">
-          Reset Password
-        </a>
-        <p>This link expires in 10 minutes.</p>
+        <p>You requested to reset your password.</p>
+        <a href="${resetURL}" target="_blank">Reset Password</a>
       `,
     };
 
     await transporter.sendMail(mailOptions);
 
-    res.json({ message: "✅ Password reset link sent to your email" });
+    res.json({ message: "Password reset link sent to email" });
   } catch (err) {
     console.error("Forgot password error:", err);
     res.status(500).json({ message: "Server error sending reset email" });
   }
 };
 
-/**
- * @desc Reset Password via Token
- * @route POST /api/auth/reset-password/:token
- */
 const resetPassword = async (req, res) => {
   try {
     const resetTokenHash = crypto
@@ -221,19 +228,18 @@ const resetPassword = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     admin.password = await bcrypt.hash(newPassword, salt);
 
-    // clear reset token
     admin.resetPasswordToken = undefined;
     admin.resetPasswordExpire = undefined;
 
     await admin.save();
-    res.json({ message: "✅ Password has been reset successfully" });
+
+    res.json({ message: "Password has been reset successfully" });
   } catch (err) {
     console.error("Reset password error:", err);
     res.status(500).json({ message: "Server error resetting password" });
   }
 };
 
-// ✅ Properly export everything
 module.exports = {
   registerUser,
   loginUser,

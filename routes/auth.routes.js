@@ -22,9 +22,4 @@ router.put("/update-settings", protect, updateAdminSettings);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
 
-// 🔹 Catch-all for undefined routes
-router.use((req, res) => {
-  res.status(404).json({ message: "Auth route not found" });
-});
-
 module.exports = router;
